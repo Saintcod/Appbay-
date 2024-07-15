@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Read-Only File Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <style>
+        .section {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Read-Only File Viewer</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.doc,.docx" />
+    <div id="fileContent"></div>
+    <button id="nextButton" style="display:none;">Next</button>
+
+    <script>
+        let workbook = null;
+        let currentSheetIndex = 0;
+
+        document.getElementById('fileInput').addEventListener('change', handleFile, false);
+        document.getElementById('nextButton').addEventListener('click', showNextSheet, false);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            const fileContentDiv = document.getElementById('fileContent');
+
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                    workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    currentSheetIndex = 0;
+                    displaySheet(currentSheetIndex);
+                    if (workbook.SheetNames.length > 1) {
+                        document.getElementById('nextButton').style.display = 'block';
+                    } else {
+                        document.getElementById('nextButton').style.display = 'none';
+                    }
+                } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+                    handleWordFile(arrayBuffer);
+                } else {
+                    fileContentDiv.innerHTML = 'Unsupported file format.';
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function displaySheet(index) {
+            const fileContentDiv = document.getElementById('fileContent');
+            const sheetName = workbook.SheetNames[index];
+            const sheet = workbook.Sheets[sheetName];
+            let html = `<div class="section"><h2>Sheet: ${sheetName}</h2>`;
+            html += XLSX.utils.sheet_to_html(sheet);
+            html += '</div>';
+            fileContentDiv.innerHTML = html;
+        }
+
+        function showNextSheet() {
+            currentSheetIndex++;
+            if (currentSheetIndex >= workbook.SheetNames.length) {
+                currentSheetIndex = 0; // Wrap around to the first sheet
+            }
+            displaySheet(currentSheetIndex);
+        }
+
+        function handleWordFile(arrayBuffer) {
+            const fileContentDiv = document.getElementById('fileContent');
+
+            mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+                .then(result => {
+                    fileContentDiv.innerHTML = `<div class="section">${result.value}</div>`;
+                    document.getElementById('nextButton').style.display = 'none';
+                })
+                .catch(err => {
+                    fileContentDiv.innerHTML = 'Error reading Word file.';
+                    console.error(err);
+                    document.getElementById('nextButton').style.display = 'none';
+                });
+        }
+    </script>
+</body>
+</html>
