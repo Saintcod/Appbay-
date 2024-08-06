@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Read-Only File Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <style>
+        .section {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Read-Only File Viewer</h1>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.doc,.docx" />
+    <div id="sheetButtons"></div>
+    <div id="fileContent"></div>
+
+    <script>
+        let workbook = null;
+
+        document.getElementById('fileInput').addEventListener('change', handleFile, false);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            const fileContentDiv = document.getElementById('fileContent');
+
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                    workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    createSheetButtons();
+                    displaySheet(0); // Display the first sheet by default
+                } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+                    handleWordFile(arrayBuffer);
+                } else {
+                    fileContentDiv.innerHTML = 'Unsupported file format.';
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function createSheetButtons() {
+            const sheetButtonsDiv = document.getElementById('sheetButtons');
+            sheetButtonsDiv.innerHTML = '';
+
+            workbook.SheetNames.forEach((sheetName, index) => {
+                const button = document.createElement('button');
+                button.textContent = sheetName;
+                button.addEventListener('click', () => displaySheet(index));
+                sheetButtonsDiv.appendChild(button);
+            });
+        }
+
+        function displaySheet(index) {
+            const fileContentDiv = document.getElementById('fileContent');
+            const sheetName = workbook.SheetNames[index];
+            const sheet = workbook.Sheets[sheetName];
+            const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            let html = `<div class="section"><h2>Sheet: ${sheetName}</h2><table><thead><tr>`;
+
+            if (jsonSheet.length > 0) {
+                // Add table headers
+                jsonSheet[0].forEach(header => {
+                    html += `<th>${header}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+
+                // Add table rows, skipping empty rows
+                for (let i = 1; i < jsonSheet.length; i++) {
+                    const row = jsonSheet[i];
+                    if (row.some(cell => cell !== undefined && cell !== '')) {
+                        html += '<tr>';
+                        row.forEach(cell => {
+                            html += `<td>${cell !== undefined ? cell : ''}</td>`;
+                        });
+                        html += '</tr>';
+                    }
+                }
+                html += '</tbody></table></div>';
+            } else {
+                html += '<p>No data available in this sheet.</p></div>';
+            }
+
+            fileContentDiv.innerHTML = html;
+        }
+
+        function handleWordFile(arrayBuffer) {
+            const fileContentDiv = document.getElementById('fileContent');
+
+            mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+                .then(result => {
+                    fileContentDiv.innerHTML = `<div class="section">${result.value}</div>`;
+                })
+                .catch(err => {
+                    fileContentDiv.innerHTML = 'Error reading Word file.';
+                    console.error(err);
+                });
+        }
+    </script>
+</body>
+</html>
